@@ -159,7 +159,7 @@ static int OpenEncoder( vlc_object_t *p_this )
     p_sys->i_width = p_enc->fmt_in.video.i_width;
     p_sys->i_height = p_enc->fmt_in.video.i_height;
 
-    //TODO
+    //TODO: fps
     if( !p_enc->fmt_in.video.i_frame_rate ||
         !p_enc->fmt_in.video.i_frame_rate_base )
     { } else { };
@@ -188,7 +188,7 @@ static int OpenEncoder( vlc_object_t *p_this )
 
     EGifSetGifVersion(p_sys->gif, 1);
 
-    p_sys->gifColorMap = GifMakeMapObject(256, NULL); //TODO: precompute colors
+    p_sys->gifColorMap = GifMakeMapObject(256, NULL); //TODO: precompute colors?
     if(p_sys->gifColorMap == NULL)
     {
         return VLC_ENOMEM; //TODO: review
@@ -197,30 +197,28 @@ static int OpenEncoder( vlc_object_t *p_this )
     ret = EGifPutScreenDesc(p_sys->gif,
                             p_sys->i_width,
                             p_sys->i_height,
-                            p_sys->gifColorRes, //TODO
-                            -1,
-                            p_sys->gifColorMap); //TODO
+                            p_sys->gifColorRes, //TODO: what's this?
+                            NO_TRANSPARENT_COLOR,
+                            p_sys->gifColorMap);
     if( ret == GIF_ERROR )
     {
         msg_Warn( p_enc, "Anigif encoder initialisation failed: %s", GifErrorString(p_sys->gif->Error));
         return VLC_EGENERIC;
     }
 
-    //TODO: "application extension block" specifying animation
+    //TODO: "application extension block" specifying animation loop / repeat count
 
     return VLC_SUCCESS;
 }
 
 /****************************************************************************
  * Encode: the whole thing
- ****************************************************************************
- * This function spits out ogg packets.
  ****************************************************************************/
 static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
 {
     encoder_sys_t *p_sys = p_enc->p_sys;
     block_t *p_block;
-    int ret;
+    int ret, line;
 
     if( !p_pict ) return NULL;
     /* Sanity check */
@@ -234,7 +232,12 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
         return NULL;
     }
 
-    p_block = block_New( p_enc, oggpacket.bytes );
+    p_block = block_New( p_enc, /* TODO */ 0 );
+
+    EGifPutExtension(p_sys->gif,
+                     GRAPHICS_EXT_FUNC_CODE,
+                     4,
+                     gce);
 
     ret = EGifPutImageDesc(p_sys->gif,
                            0,
@@ -245,17 +248,16 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
                            NULL);
     if( ret == GIF_ERROR )
     {
-        msg_Warn( p_enc, "failed encoding a frame, at image description" );
+        msg_Warn( p_enc, "failed encoding a frame, at image description, message %s", GifErrorString(p_sys->gif->Error) );
         return NULL;
     }
 
     for(line = 0; line < p_sys->i_height; line++)
     {
-        //TODO get pixel data from p_pict
-        ret = EGifPutLine(p_sys->gif, lineData, lineLen);
+        ret = EGifPutLine(p_sys->gif, p_pict->p[0].p_pixels, p_pict->p[0].i_pitch);
         if( ret == GIF_ERROR )
         {
-            msg_Warn( p_enc, "failed encoding a frame, line %d", line );
+            msg_Warn( p_enc, "failed encoding a frame, line %d, message %s", line, GifErrorString(p_sys->gif->Error) );
             return NULL;
         }
     };
