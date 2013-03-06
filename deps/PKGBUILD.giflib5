@@ -1,0 +1,39 @@
+# $Id$
+# Maintainer: Jan de Groot <jgc@archlinux.org>
+# Contributor: Baptiste Daroussin <baptiste.daroussin@gmail.com>
+# Contributor: Grigorios Bouzakis <grbzks[at]gmail[dot]com>
+# Contributor: mightyjaym <jm.ambrosino@free.fr>
+
+pkgname=giflib5
+_pkgname=giflib
+pkgver=5.0.4
+pkgrel=1
+pkgdesc="A library for reading and writing gif images"
+url="http://sourceforge.net/projects/giflib/"
+arch=('i686' 'x86_64')
+license=('MIT')
+depends=('libx11')
+provides=("libungif=${pkgver}")
+conflicts=('libungif')
+replaces=('libungif')
+options=('!libtool')
+source=(http://downloads.sourceforge.net/sourceforge/giflib/${_pkgname}-${pkgver}.tar.bz2)
+
+build() {
+  cd "${srcdir}/${_pkgname}-${pkgver}"
+  ./configure --prefix=/usr --disable-static
+  make
+}
+
+package() {
+  cd "${srcdir}/${_pkgname}-${pkgver}"
+  make DESTDIR="${pkgdir}" install
+
+  # conflicts with orig. giflib package
+  #install -Dm644 COPYING "${pkgdir}/usr/share/licenses/${pkgname}/COPYING"
+
+  # FIXME
+  # libgif 4.x compatibility
+  rm ${pkgdir}/usr/lib/libgif.so
+}
+md5sums=('da60935d07374de00a78c2f6f720c8f5')
