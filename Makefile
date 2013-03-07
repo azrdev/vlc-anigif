@@ -13,7 +13,7 @@ plugindir = $(libdir)/vlc/plugins
 override CC += -std=gnu99
 override CPPFLAGS += -DPIC -I. -Isrc
 override CFLAGS += -fPIC
-override LDFLAGS += -Wl,-no-undefined,-z,defs
+override LDFLAGS += -Wl,-no-undefined,-z,defs -lgif
 
 override CPPFLAGS += -DMODULE_STRING=\"anigif\"
 override CFLAGS += $(VLC_PLUGIN_CFLAGS)

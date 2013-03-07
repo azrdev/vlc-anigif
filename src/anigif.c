@@ -34,6 +34,8 @@
 #include <vlc_sout.h>
 #include <vlc_input.h>
 
+#include "anigif.h"
+
 #include "gif_lib.h"
 
 #include <assert.h>
@@ -44,9 +46,6 @@
  *****************************************************************************/
 struct decoder_sys_t
 {
-    /* Module mode */
-    bool b_packetizer;
-
     /*
      * Input properties
      */
@@ -111,18 +110,42 @@ static void CloseDecoder( vlc_object_t *p_this )
 struct encoder_sys_t
 {
     /*
-     * Input properties
-     */
-    bool b_headers;
-
-    /*
      * GIFLIB properties
      */
     GifFileType* gif;
     ColorMapObject* gifColorMap;
+    GifByteType* gcbCompiled;
+    size_t gcbCompiledLen;
     int gifColorRes;
     int i_width, i_height;
+
+    uint8_t* buffer;
+    size_t bufferLen, bufferCapacity;
 };
+
+/*****************************************************************************
+ * gifBufferWrite: callback for giflib to write to the internal buffer
+ *****************************************************************************/
+int gifBufferWrite(GifFileType* gif, const GifByteType* data, int len) {
+    encoder_sys_t* p_sys = (encoder_sys_t*) gif->UserData;
+
+    // resize buffer if necessary
+    if(p_sys->bufferLen + len > p_sys->bufferCapacity) {
+        size_t newCapacity =
+            (p_sys->bufferCapacity << 1) - (p_sys->bufferCapacity >> 1); // * 1.5
+
+        p_sys->buffer = realloc(p_sys->buffer, newCapacity);
+        if(p_sys->buffer == NULL) {
+            p_sys->bufferCapacity = 0; //TODO what will subsequent calls to gifBufferWrite do?
+            return 0;
+        }
+        p_sys->bufferCapacity = newCapacity;
+    }
+
+    memcpy(p_sys->buffer + p_sys->bufferLen, data, len);
+    p_sys->bufferLen += len;
+    return len;
+}
 
 /*****************************************************************************
  * OpenEncoder: probe the encoder and return score
@@ -131,6 +154,7 @@ static int OpenEncoder( vlc_object_t *p_this )
 {
     encoder_t *p_enc = (encoder_t *)p_this;
     encoder_sys_t *p_sys;
+    GraphicsControlBlock gcb;
     int ret;
 
     if( p_enc->fmt_out.i_codec != VLC_CODEC_ANIGIF &&
@@ -181,8 +205,14 @@ static int OpenEncoder( vlc_object_t *p_this )
     }
     */
 
-    if( ( p_sys->gif = EGifOpen(gifBuffer, gifBufferWrite, &ret) ) == NULL ) {
-        msg_Err( p_enc, "Anigif encoder initialisation failed: %s", GifErrorString(ret));
+    // initialize buffer for giflib to write to
+    p_sys->bufferCapacity = p_sys->i_width * p_sys->i_height + 800; // wild guess
+    p_sys->buffer = malloc(p_sys->bufferCapacity);
+    p_sys->bufferLen = 0;
+
+    if( ( p_sys->gif = EGifOpen(p_sys, gifBufferWrite, &ret) ) == NULL ) {
+        msg_Err(p_enc, "Anigif encoder initialisation failed: %s",
+                GifErrorString(ret));
         return VLC_ENOMEM; // according to docs the only possible error condition
     }
 
@@ -197,16 +227,23 @@ static int OpenEncoder( vlc_object_t *p_this )
     ret = EGifPutScreenDesc(p_sys->gif,
                             p_sys->i_width,
                             p_sys->i_height,
-                            p_sys->gifColorRes, //TODO: what's this?
+                            7, // == log_2 ( color map size = 256 ) - 1
                             NO_TRANSPARENT_COLOR,
                             p_sys->gifColorMap);
     if( ret == GIF_ERROR )
     {
-        msg_Warn( p_enc, "Anigif encoder initialisation failed: %s", GifErrorString(p_sys->gif->Error));
+        msg_Warn(p_enc, "Anigif encoder initialisation failed: %s",
+                 GifErrorString(p_sys->gif->Error));
         return VLC_EGENERIC;
     }
 
     //TODO: "application extension block" specifying animation loop / repeat count
+
+    // prepare 'compiled' gcb, cause it is the same for all images
+    gcb.DisposalMode = DISPOSE_BACKGROUND;
+    gcb.DelayTime = 100; //in 10ms - TODO: use fps from input
+    gcb.TransparentColor = NO_TRANSPARENT_COLOR;
+    p_sys->gcbCompiledLen = EGifGCBToExtension(&gcb, p_sys->gcbCompiled);
 
     return VLC_SUCCESS;
 }
@@ -232,12 +269,10 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
         return NULL;
     }
 
-    p_block = block_New( p_enc, /* TODO */ 0 );
-
     EGifPutExtension(p_sys->gif,
                      GRAPHICS_EXT_FUNC_CODE,
-                     4,
-                     gce);
+                     p_sys->gcbCompiledLen,
+                     p_sys->gcbCompiled);
 
     ret = EGifPutImageDesc(p_sys->gif,
                            0,
@@ -248,7 +283,8 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
                            NULL);
     if( ret == GIF_ERROR )
     {
-        msg_Warn( p_enc, "failed encoding a frame, at image description, message %s", GifErrorString(p_sys->gif->Error) );
+        msg_Warn(p_enc, "failed encoding a frame, at image description, message %s",
+                 GifErrorString(p_sys->gif->Error) );
         return NULL;
     }
 
@@ -257,10 +293,14 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
         ret = EGifPutLine(p_sys->gif, p_pict->p[0].p_pixels, p_pict->p[0].i_pitch);
         if( ret == GIF_ERROR )
         {
-            msg_Warn( p_enc, "failed encoding a frame, line %d, message %s", line, GifErrorString(p_sys->gif->Error) );
+            msg_Warn(p_enc, "failed encoding a frame, line %d, message %s", line,
+                     GifErrorString(p_sys->gif->Error) );
             return NULL;
         }
     };
+
+    p_block = block_New( p_enc, p_sys->bufferLen );
+    memcpy( p_block->p_buffer, p_sys->buffer, p_sys->bufferLen );
 
     p_block->i_dts = p_block->i_pts = p_pict->date;
 
@@ -281,7 +321,8 @@ static void CloseEncoder( vlc_object_t *p_this )
     ret = EGifCloseFile(p_sys->gif);
     if(ret == GIF_ERROR)
     {
-        msg_Warn( p_enc, "Could not close encoder: %s", GifErrorString(p_sys->gif->Error));
+        msg_Warn(p_enc, "Could not close encoder: %s",
+                 GifErrorString(p_sys->gif->Error));
     }
     free( p_sys );
 }
