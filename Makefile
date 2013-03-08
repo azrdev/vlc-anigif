@@ -2,7 +2,7 @@ PREFIX = /usr
 LD = ld
 CC = cc
 INSTALL = install
-CFLAGS = -g -O2 -Wall -Wextra -I./package/src/vlc-2.0.5/include
+CFLAGS = -g -Wall -Wextra -I./package/src/vlc-2.0.5/include
 LDFLAGS =
 VLC_PLUGIN_CFLAGS := $(shell pkg-config --cflags vlc-plugin)
 VLC_PLUGIN_LIBS := $(shell pkg-config --libs vlc-plugin)
@@ -24,14 +24,14 @@ TARGETS = libanigif_plugin.so
 all: libanigif_plugin.so
 
 install: all
-	mkdir -p -- $(DESTDIR)$(plugindir)/misc
-	$(INSTALL) --mode 0755 libanigif_plugin.so $(DESTDIR)$(plugindir)/misc
+	mkdir -p -- $(DESTDIR)$(plugindir)/codec
+	$(INSTALL) --mode 0755 libanigif_plugin.so $(DESTDIR)$(plugindir)/codec
 
 install-strip:
 	$(MAKE) install INSTALL="$(INSTALL) -s"
 
 uninstall:
-	rm -f $(plugindir)/misc/libanigif_plugin.so
+	rm -f $(plugindir)/codec/libanigif_plugin.so
 
 clean:
 	rm -f -- libanigif_plugin.so src/*.o

@@ -75,12 +75,14 @@ vlc_module_begin ()
     set_category( CAT_INPUT )
     set_subcategory( SUBCAT_INPUT_VCODEC )
     set_shortname( "anigif" )
+    /*
     set_description( "Animated GIF decoder" )
     set_capability( "decoder", 100 )
     set_callbacks( OpenDecoder, CloseDecoder )
     add_shortcut( "anigif" )
 
     add_submodule ()
+    */
     set_description( "Animated GIF video encoder" )
     set_capability( "encoder", 150 )
     set_callbacks( OpenEncoder, CloseEncoder )
@@ -243,8 +245,11 @@ static int OpenEncoder( vlc_object_t *p_this )
     gcb.DisposalMode = DISPOSE_BACKGROUND;
     gcb.DelayTime = 100; //in 10ms - TODO: use fps from input
     gcb.TransparentColor = NO_TRANSPARENT_COLOR;
+    p_sys->gcbCompiled = malloc(4); //FIXME
     p_sys->gcbCompiledLen = EGifGCBToExtension(&gcb, p_sys->gcbCompiled);
 
+    msg_Dbg(p_enc, "Anigif encoder intialized: width %d, height %d",
+            p_sys->i_width, p_sys->i_height);
     return VLC_SUCCESS;
 }
 
@@ -304,6 +309,9 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
 
     p_block->i_dts = p_block->i_pts = p_pict->date;
 
+    //reset buffer
+    p_sys->bufferLen = 0;
+
     return p_block;
 }
 
@@ -324,5 +332,7 @@ static void CloseEncoder( vlc_object_t *p_this )
         msg_Warn(p_enc, "Could not close encoder: %s",
                  GifErrorString(p_sys->gif->Error));
     }
+    free( p_sys->gcbCompiled );
+    free( p_sys->buffer );
     free( p_sys );
 }
