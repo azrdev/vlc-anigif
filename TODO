@@ -1,0 +1,4 @@
+--sout-http-mime image/gif --sout "#transcode{venc=anigif,acodec=none}:standard{mux=raw,access=http,dst=:8080}" vlc://quit
+
+color - perhaps FIXME in i420torgb conversion
+

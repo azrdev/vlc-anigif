@@ -78,6 +78,7 @@ struct encoder_sys_t
     size_t gcbCompiledLen;
     int gifColorRes;
     int i_width, i_height;
+    bool isFirstPicture;
     int displayDuration; // in 10ms units
 
     uint8_t* buffer;
@@ -145,6 +146,7 @@ static int OpenEncoder( vlc_object_t *p_this )
 
     p_sys->i_width = p_enc->fmt_in.video.i_width;
     p_sys->i_height = p_enc->fmt_in.video.i_height;
+    p_sys->isFirstPicture = true;
 
     // calculate display duration for images from input frame rate
     if( !p_enc->fmt_in.video.i_frame_rate ||
@@ -226,7 +228,7 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
 {
     encoder_sys_t *p_sys = p_enc->p_sys;
     block_t *p_block;
-    int ret, line, i;
+    int ret, line;
 
     if( !p_pict ) return NULL;
     /* Sanity check */
@@ -298,7 +300,10 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
     memcpy( p_block->p_buffer, p_sys->buffer, p_sys->bufferLen );
 
     p_block->i_dts = p_block->i_pts = p_pict->date;
-
+    if( p_sys->isFirstPicture ) {
+	    p_block->i_flags = BLOCK_FLAG_HEADER; // buffer contains image header
+	    p_sys->isFirstPicture = false;
+    }
     // reset buffer
     p_sys->bufferLen = 0;
 
