@@ -36,7 +36,7 @@
 
 #include "anigif.h"
 
-#include "gif_lib.h"
+#include "gif_lib5.h"
 
 #include <assert.h>
 #include <limits.h>
