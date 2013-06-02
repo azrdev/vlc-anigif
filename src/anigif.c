@@ -62,7 +62,19 @@ vlc_module_begin ()
     add_shortcut( "anigif" )
 
 #   define ENC_CFG_PREFIX "sout-anigif-"
+
+#define ENC_LOOP "loop"
+#define ENC_LOOP_DESC_SHORT "Animation repeat count"
+#define ENC_LOOP_DESC_LONG "How often to repeat the animation, up to 65535. " \
+  "0 means infinite, negative values mean no loop at all, this is the default. "
+    add_integer( ENC_CFG_PREFIX ENC_LOOP, -1, ENC_LOOP_DESC_SHORT, ENC_LOOP_DESC_LONG, false );
+
 vlc_module_end ()
+
+
+static const char* const ppsz_enc_options[] = {
+    ENC_LOOP, NULL
+};
 
 /*****************************************************************************
  * encoder_sys_t : anigif encoder descriptor
@@ -123,6 +135,8 @@ static int OpenEncoder( vlc_object_t *p_this )
     GraphicsControlBlock gcb;
     GifColorType color;
     int ret, i;
+    char aeb[3];
+    int16_t aniRepeatCount;
 
     if( p_enc->fmt_out.i_codec != VLC_CODEC_ANIGIF &&
         !p_enc->b_force )
@@ -139,9 +153,14 @@ static int OpenEncoder( vlc_object_t *p_this )
     p_enc->fmt_in.i_codec = VLC_CODEC_RGB8;
     p_enc->fmt_out.i_codec = VLC_CODEC_ANIGIF;
 
-    /* //TODO: configuration options
+    // configuration options
     config_ChainParse( p_enc, ENC_CFG_PREFIX, ppsz_enc_options, p_enc->p_cfg );
+    aniRepeatCount = var_GetInteger(p_enc, ENC_CFG_PREFIX ENC_LOOP );
 
+    msg_Dbg(p_enc, "anigif option loop = %d", aniRepeatCount);
+
+    /*
+    //TODO: option quality ~= color depth ?
     i_quality = var_GetInteger( p_enc, ENC_CFG_PREFIX "quality" );
     if( i_quality > 10 ) i_quality = 10;
     if( i_quality < 0 ) i_quality = 0;
@@ -208,7 +227,41 @@ static int OpenEncoder( vlc_object_t *p_this )
         return VLC_EGENERIC;
     }
 
-    //TODO: "application extension block" specifying animation loop / repeat count
+    // application extension block specifying animation loop count
+    if(aniRepeatCount >= 0) {
+
+        ret = EGifPutExtensionLeader(p_sys->gif, APPLICATION_EXT_FUNC_CODE);
+        if( ret == GIF_ERROR )
+        {
+            msg_Info(p_enc, "EGifPutExtensionLeader failed: %s",
+                     GifErrorString(p_sys->gif->Error));
+        }
+
+        ret = EGifPutExtensionBlock(p_sys->gif, 11, "NETSCAPE2.0");
+        if( ret == GIF_ERROR )
+        {
+            msg_Info(p_enc, "EGifPutExtension failed: %s",
+                     GifErrorString(p_sys->gif->Error));
+        }
+
+	//TODO: either this is wrong, or firefox ignores discrete loop count values
+        aeb[0] = 0x1;
+        aeb[1] = aniRepeatCount >> 8;
+        aeb[2] = aniRepeatCount & 0xFF;
+        ret = EGifPutExtensionBlock(p_sys->gif, 3, aeb);
+        if( ret == GIF_ERROR )
+        {
+            msg_Info(p_enc, "EGifPutExtension failed: %s",
+                     GifErrorString(p_sys->gif->Error));
+        }
+
+        ret = EGifPutExtensionTrailer(p_sys->gif);
+        if( ret == GIF_ERROR )
+        {
+            msg_Info(p_enc, "EGifPutExtensionTrailer failed: %s",
+                     GifErrorString(p_sys->gif->Error));
+        }
+    }
 
     // prepare 'compiled' gcb, because it is the same for all images
     gcb.DisposalMode = DISPOSE_BACKGROUND;
