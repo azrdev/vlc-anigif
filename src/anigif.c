@@ -136,7 +136,7 @@ static int OpenEncoder( vlc_object_t *p_this )
     GifColorType color;
     int ret, i;
     char aeb[3];
-    int16_t aniRepeatCount;
+    int aniRepeatCount;
 
     if( p_enc->fmt_out.i_codec != VLC_CODEC_ANIGIF &&
         !p_enc->b_force )
@@ -156,8 +156,10 @@ static int OpenEncoder( vlc_object_t *p_this )
     // configuration options
     config_ChainParse( p_enc, ENC_CFG_PREFIX, ppsz_enc_options, p_enc->p_cfg );
     aniRepeatCount = var_GetInteger(p_enc, ENC_CFG_PREFIX ENC_LOOP );
-
-    msg_Dbg(p_enc, "anigif option loop = %d", aniRepeatCount);
+    if(aniRepeatCount >= 65535) {
+	    msg_Info( p_enc, "loop count > maximum, capping to 65535" );
+	    aniRepeatCount = 65535;
+    }
 
     /*
     //TODO: option quality ~= color depth ?
