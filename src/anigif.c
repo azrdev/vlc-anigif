@@ -74,7 +74,7 @@ struct encoder_sys_t
      */
     GifFileType* gif;
     ColorMapObject* gifColorMap;
-    GifByteType* gcbCompiled;
+    GifByteType gcbCompiled[4];
     size_t gcbCompiledLen;
     int gifColorRes;
     int i_width, i_height;
@@ -91,18 +91,21 @@ struct encoder_sys_t
 int gifBufferWrite(GifFileType* gif, const GifByteType* data, int len) {
     encoder_sys_t* p_sys = (encoder_sys_t*) gif->UserData;
 
-    // resize buffer if necessary
+    // expand buffer if necessary
     if(p_sys->bufferLen + len > p_sys->bufferCapacity) {
         size_t newCapacity =
             (p_sys->bufferCapacity << 1) - (p_sys->bufferCapacity >> 1); // * 1.5
 
-        p_sys->buffer = realloc(p_sys->buffer, newCapacity);
-        if(p_sys->buffer == NULL) {
-            p_sys->bufferCapacity = 0;
-            //FIXME what will subsequent calls to gifBufferWrite do?
+        uint8_t* newBuffer = realloc(p_sys->buffer, newCapacity);
+        if(newBuffer == NULL) {
+            // realloc() failed, but the old buffer is still valid
+
+            //perhaps we should at least write as much as there is capacity
+            //remaining, instead of just failing
             return 0;
         }
         p_sys->bufferCapacity = newCapacity;
+        p_sys->buffer = newBuffer;
     }
 
     memcpy(p_sys->buffer + p_sys->bufferLen, data, len);
@@ -211,8 +214,8 @@ static int OpenEncoder( vlc_object_t *p_this )
     gcb.DisposalMode = DISPOSE_BACKGROUND;
     gcb.DelayTime = p_sys->displayDuration;
     gcb.TransparentColor = NO_TRANSPARENT_COLOR;
-    p_sys->gcbCompiled = malloc(4); //FIXME
-    p_sys->gcbCompiledLen = EGifGCBToExtension(&gcb, p_sys->gcbCompiled);
+    p_sys->gcbCompiledLen = 4;
+    assert( p_sys->gcbCompiledLen == EGifGCBToExtension(&gcb, p_sys->gcbCompiled) );
 
     /*
     msg_Dbg(p_enc, "Anigif encoder intialized: width %d, height %d",
@@ -327,7 +330,6 @@ static void CloseEncoder( vlc_object_t *p_this )
         msg_Warn(p_enc, "EGifCloseFile failed: %s",
                  GifErrorString(p_sys->gif->Error));
     }
-    free( p_sys->gcbCompiled );
     free( p_sys->buffer );
     free( p_sys );
 }
