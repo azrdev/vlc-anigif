@@ -164,8 +164,6 @@ static int OpenEncoder( vlc_object_t *p_this )
     /*
     //TODO: option quality ~= color depth ?
     i_quality = var_GetInteger( p_enc, ENC_CFG_PREFIX "quality" );
-    if( i_quality > 10 ) i_quality = 10;
-    if( i_quality < 0 ) i_quality = 0;
     */
 
     p_sys->i_width = p_enc->fmt_in.video.i_width;
@@ -246,7 +244,6 @@ static int OpenEncoder( vlc_object_t *p_this )
                      GifErrorString(p_sys->gif->Error));
         }
 
-	//TODO: either this is wrong, or firefox ignores discrete loop count values
         aeb[0] = 0x1;
         aeb[1] = aniRepeatCount >> 8;
         aeb[2] = aniRepeatCount & 0xFF;
@@ -269,8 +266,8 @@ static int OpenEncoder( vlc_object_t *p_this )
     gcb.DisposalMode = DISPOSE_BACKGROUND;
     gcb.DelayTime = p_sys->displayDuration;
     gcb.TransparentColor = NO_TRANSPARENT_COLOR;
-    p_sys->gcbCompiledLen = 4;
-    assert( p_sys->gcbCompiledLen == EGifGCBToExtension(&gcb, p_sys->gcbCompiled) );
+    p_sys->gcbCompiledLen = EGifGCBToExtension(&gcb, p_sys->gcbCompiled);
+    assert( p_sys->gcbCompiledLen == 4);
 
     /*
     msg_Dbg(p_enc, "Anigif encoder intialized: width %d, height %d",
@@ -312,7 +309,7 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
             p_pict->p[0].i_visible_pitch);
     */
 
-    // graphics control extension - specify image display duration
+    // graphics control extension specifying image display duration - pre-"compiled"
     EGifPutExtension(p_sys->gif,
                      GRAPHICS_EXT_FUNC_CODE,
                      p_sys->gcbCompiledLen,
@@ -388,3 +385,6 @@ static void CloseEncoder( vlc_object_t *p_this )
     free( p_sys->buffer );
     free( p_sys );
 }
+
+/* vim:set ts=4 sts=4 sw=4 et : */
+
