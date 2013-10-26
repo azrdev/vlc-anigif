@@ -149,8 +149,8 @@ static int OpenEncoder( vlc_object_t *p_this )
         return VLC_ENOMEM;
     p_enc->p_sys = p_sys;
 
-    p_enc->pf_encode_video = Encode;
-    p_enc->fmt_in.i_codec = VLC_CODEC_RGB8;
+    p_enc->pf_encode_video = Encode; // set our callback
+    p_enc->fmt_in.i_codec = VLC_CODEC_RGB8; // we want 8bit-RGB data
     p_enc->fmt_out.i_codec = VLC_CODEC_ANIGIF;
 
     // configuration options
@@ -174,7 +174,7 @@ static int OpenEncoder( vlc_object_t *p_this )
     if( !p_enc->fmt_in.video.i_frame_rate ||
         !p_enc->fmt_in.video.i_frame_rate_base )
     {
-        p_sys->displayDuration = 4; // default to 4fps, which is 4*10ms
+        p_sys->displayDuration = 4; // default to 25fps, which is 4*10ms per frame
     }
     else
     {
@@ -184,8 +184,12 @@ static int OpenEncoder( vlc_object_t *p_this )
 
     // initialize buffer for giflib to write to
     p_sys->bufferCapacity = p_sys->i_width * p_sys->i_height + 800; // wild guess
-    p_sys->buffer = malloc(p_sys->bufferCapacity);
     p_sys->bufferLen = 0;
+    p_sys->buffer = malloc(p_sys->bufferCapacity);
+    if( p_sys->buffer == NULL ) {
+        msg_Err(p_enc, "Could not allocate buffer");
+        return VLC_ENOMEM;
+    }
 
     if( ( p_sys->gif = EGifOpen(p_sys, gifBufferWrite, &ret) ) == NULL ) {
         msg_Err(p_enc, "EGifOpen failed: %s",
@@ -204,13 +208,15 @@ static int OpenEncoder( vlc_object_t *p_this )
     }
     for(i = 0; i < 256; i++)
     {
+        //FIXME: why the hell does this work?
         color = (GifColorType){ i, i, i };
-        /* p_palette always NULL :-(
+
+        /* defunct 'cause p_palette always NULL :-(
         color.Red   = p_enc->fmt_in.video.p_palette->palette[i][0];
         color.Green = p_enc->fmt_in.video.p_palette->palette[i][1];
         color.Blue  = p_enc->fmt_in.video.p_palette->palette[i][2];
         */
-        //FIXME: why the hell does this code work?
+
         p_sys->gifColorMap->Colors[i] = color;
     }
 
