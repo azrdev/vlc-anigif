@@ -36,7 +36,7 @@
 
 #include "anigif.h"
 
-#include "gif_lib5.h"
+#include "gif_lib.h"
 
 #include <assert.h>
 #include <limits.h>
@@ -354,7 +354,7 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
         }
     };
 
-    p_block = block_New( p_enc, p_sys->bufferLen );
+    p_block = block_Alloc( p_sys->bufferLen );
     memcpy( p_block->p_buffer, p_sys->buffer, p_sys->bufferLen );
 
     p_block->i_dts = p_block->i_pts = p_pict->date;

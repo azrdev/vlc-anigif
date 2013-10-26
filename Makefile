@@ -2,7 +2,7 @@ PREFIX = /usr
 LD = ld
 CC = cc
 INSTALL = install
-CFLAGS = -g -Wall -Wextra -I./package/src/vlc-2.0.5/include
+CFLAGS = -g -Wall -Wextra
 LDFLAGS =
 VLC_PLUGIN_CFLAGS := $(shell pkg-config --cflags vlc-plugin)
 VLC_PLUGIN_LIBS := $(shell pkg-config --libs vlc-plugin)
@@ -13,7 +13,7 @@ plugindir = $(libdir)/vlc/plugins
 override CC += -std=gnu99
 override CPPFLAGS += -DPIC -I. -Isrc
 override CFLAGS += -fPIC
-override LDFLAGS += -Wl,-no-undefined,-z,defs -l:libgif.so.6
+override LDFLAGS += -Wl,-no-undefined,-z,defs -lgif
 
 override CPPFLAGS += -DMODULE_STRING=\"anigif\"
 override CFLAGS += $(VLC_PLUGIN_CFLAGS)
