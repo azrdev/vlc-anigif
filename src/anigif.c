@@ -376,17 +376,17 @@ static block_t *Encode( encoder_t *p_enc, picture_t *p_pict )
  *****************************************************************************/
 static void CloseEncoder( vlc_object_t *p_this )
 {
-    int ret;
+    int ret, error;
     encoder_t *p_enc = (encoder_t *)p_this;
     encoder_sys_t *p_sys = p_enc->p_sys;
 
     GifFreeMapObject(p_sys->gifColorMap);
 
-    ret = EGifCloseFile(p_sys->gif);
+    ret = EGifCloseFile(p_sys->gif, &error);
     if(ret == GIF_ERROR)
     {
         msg_Warn(p_enc, "EGifCloseFile failed: %s",
-                 GifErrorString(p_sys->gif->Error));
+                 GifErrorString(error));
     }
     free( p_sys->buffer );
     free( p_sys );
